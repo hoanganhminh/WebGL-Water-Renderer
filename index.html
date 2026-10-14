@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Aqua Dynamics - Real-Time WebGL Water & Caustics Physics</title>
+  <meta name="description" content="An interactive real-time WebGL fluid simulation featuring dynamic wave propagation, caustic light projection, floating sphere physics, and raytraced optics. Inspired by Evan Wallace (Figma Co-founder).">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- WebGL Dependencies -->
+  <script src="OES_texture_float_linear-polyfill.js"></script>
+  <script src="lightgl.js"></script>
+  <script>
+    var gl = GL.create();
+  </script>
+  <script src="cubemap.js"></script>
+  <script src="water.js"></script>
+  <script src="renderer.js"></script>
+  <script src="sound.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <!-- WebGL Canvas Container -->
+  <main id="canvas-container" role="main" aria-label="3D WebGL Fluid Simulation Surface"></main>
+
+  <!-- Loading State -->
+  <div id="loading" role="alert" aria-live="polite">
+    <div class="spinner"></div>
+    <div class="loading-text">INITIALIZING FLUID DYNAMICS...</div>
+  </div>
+
+  <!-- Exit Zen Mode Button -->
+  <button id="btn-exit-zen" class="nav-btn exit-zen-btn" aria-label="Exit Zen Mode">
+    <span>✕ Exit Zen Mode</span>
+  </button>
+
+  <!-- Top Navigation Header -->
+  <header class="top-nav">
+    <div class="nav-left">
+      <div class="brand-badge">
+        <div class="brand-icon">💧</div>
+        <div class="brand-title">AQUA DYNAMICS</div>
+        <div class="brand-tag">v2.0</div>
+      </div>
+      <div class="status-badge">
+        <div class="pulse-dot"></div>
+        <span id="fps-metric">60 FPS</span>
+      </div>
+    </div>
+
+    <div class="nav-right">
+      <button id="btn-audio" class="nav-btn icon-btn active" title="Toggle Sound FX" aria-label="Toggle Sound Effects">
+        <span class="icon">🔊</span>
+      </button>
+      <button id="btn-orbit" class="nav-btn icon-btn" title="Toggle Cinematic Auto-Orbit" aria-label="Toggle Auto Orbit">
+        <span class="icon">🔄</span>
+      </button>
+      <button id="btn-fullscreen" class="nav-btn icon-btn" title="Toggle Fullscreen" aria-label="Toggle Fullscreen">
+        <span class="icon">⛶</span>
+      </button>
+      <button id="btn-zen" class="nav-btn" title="Hide UI for Pure Zen Immersion" aria-label="Zen Mode">
+        <span>Zen Mode</span>
+      </button>
+      <button id="btn-open-tech" class="nav-btn" title="View Physics Architecture & Evan Wallace Story" aria-label="About Simulation">
+        <span>About Tech</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Floating Hero Overlay (Top Left) -->
+  <section class="hero-overlay" aria-label="Simulation Overview">
+    <div class="hero-card">
+      <div class="hero-subtitle">Interactive Physics Lab</div>
+      <h1 class="hero-title">Fluid Mechanics in WebGL</h1>
+      <div class="tribute-badge">
+        <span>⚡</span> Based on Evan Wallace's 2011 Masterpiece
+      </div>
+      <p class="hero-desc">
+        Click & drag across the water surface to generate ripples. Grab and lift the sphere to throw it with buoyancy and splash dynamics.
+      </p>
+
+      <div class="quick-actions">
+        <button id="btn-pause" class="action-btn" aria-label="Pause Simulation">
+          <span class="icon">⏸</span> Pause
+        </button>
+        <button id="btn-gravity" class="action-btn active" aria-label="Toggle Gravity">
+          <span class="icon">🪐</span> Gravity [G]
+        </button>
+        <button id="btn-rain" class="action-btn" aria-label="Toggle Rain Mode">
+          <span class="icon">🌧️</span> Rain Mode [R]
+        </button>
+        <button id="btn-drop-ball" class="action-btn" aria-label="Drop Sphere From Sky">
+          <span class="icon">🏀</span> Drop Sphere
+        </button>
+        <button id="btn-tsunami" class="action-btn" aria-label="Trigger Shockwave Splash">
+          <span class="icon">🌊</span> Shockwave
+        </button>
+        <button id="btn-calm" class="action-btn" aria-label="Calm All Waves">
+          <span class="icon">🧹</span> Calm Water [C]
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Studio Drawer (Bottom Right) -->
+  <aside id="studio-drawer" class="studio-drawer" aria-label="Simulation Studio Controls">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <span>🎛️</span> SIMULATION STUDIO
+      </div>
+      <button id="btn-toggle-drawer" class="toggle-drawer-btn" aria-label="Minimize Studio Drawer">
+        <span class="icon">✕</span> Minimize
+      </button>
+    </div>
+
+    <!-- Tab navigation -->
+    <nav class="studio-tabs" aria-label="Studio Drawer Tabs">
+      <button class="studio-tab-btn active" data-tab="fluid">Fluid</button>
+      <button class="studio-tab-btn" data-tab="sphere">Sphere</button>
+      <button class="studio-tab-btn" data-tab="optics">Optics</button>
+      <button class="studio-tab-btn" data-tab="sun">Lighting</button>
+    </nav>
+
+    <!-- Drawer Body -->
+    <div class="drawer-body">
+      <!-- Tab 1: Fluid Physics -->
+      <div id="tab-fluid" class="studio-tab-pane active">
+        <div class="control-group">
+          <div class="control-label">
+            <span>Viscosity / Damping</span>
+            <span id="val-damping" class="val-badge">0.995</span>
+          </div>
+          <input type="range" id="slider-damping" min="0.95" max="0.999" step="0.001" value="0.995">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Water Atmosphere Presets</span>
+          </div>
+          <div class="pills-grid">
+            <button class="preset-pill active" data-preset="tropical">
+              <span class="color-dot" style="background: #38bdf8;"></span> Tropical
+            </button>
+            <button class="preset-pill" data-preset="deepOcean">
+              <span class="color-dot" style="background: #0369a1;"></span> Deep Ocean
+            </button>
+            <button class="preset-pill" data-preset="emerald">
+              <span class="color-dot" style="background: #10b981;"></span> Emerald
+            </button>
+            <button class="preset-pill" data-preset="sunset">
+              <span class="color-dot" style="background: #f97316;"></span> Sunset
+            </button>
+            <button class="preset-pill" data-preset="cyberpunk">
+              <span class="color-dot" style="background: #d946ef;"></span> Cyberpunk
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Sphere -->
+      <div id="tab-sphere" class="studio-tab-pane">
+        <div class="control-group">
+          <div class="control-label">
+            <span>Sphere Radius</span>
+            <span id="val-radius" class="val-badge">0.25</span>
+          </div>
+          <input type="range" id="slider-radius" min="0.1" max="0.45" step="0.01" value="0.25">
+        </div>
+
+        <div class="control-group">
+          <div class="control-label">
+            <span>Sphere Material</span>
+          </div>
+          <div class="pills-grid">
+            <button class="mat-pill active" data-mat="ceramic">
+              <span class="color-dot" style="background: #94a3b8;"></span> Ceramic
+            </button>
+            <button class="mat-pill" data-mat="chrome">
+              <span class="color-dot" style="background: #e2e8f0; box-shadow: 0 0 6px #fff;"></span> Chrome
+            </button>
+            <button class="mat-pill" data-mat="gold">
+              <span class="color-dot" style="background: #fbbf24;"></span> 24K Gold
+            </button>
+            <button class="mat-pill" data-mat="obsidian">
+              <span class="color-dot" style="background: #1e293b;"></span> Obsidian
+            </button>
+            <button class="mat-pill" data-mat="ruby">
+              <span class="color-dot" style="background: #f43f5e;"></span> Ruby
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Optics -->
+      <div id="tab-optics" class="studio-tab-pane">
+        <div class="control-group">
+          <div class="control-label">
+            <span>Caustics Intensity</span>
+            <span id="val-caustics" class="val-badge">1.0x</span>
+          </div>
+          <input type="range" id="slider-caustics" min="0.2" max="2.5" step="0.1" value="1.0">
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); line-height: 1.4;">
+          Caustics are calculated by projecting a refractive triangle mesh onto the pool floor and measuring triangle area deformation via screen-space derivatives (OES_standard_derivatives).
+        </p>
+      </div>
+
+      <!-- Tab 4: Lighting -->
+      <div id="tab-sun" class="studio-tab-pane">
+        <div class="control-group">
+          <div class="control-label">
+            <span>Sunlight Azimuth</span>
+          </div>
+          <input type="range" id="slider-sun-azimuth" min="0" max="360" step="1" value="63">
+        </div>
+        <div class="control-group">
+          <div class="control-label">
+            <span>Sunlight Elevation</span>
+          </div>
+          <input type="range" id="slider-sun-elevation" min="15" max="85" step="1" value="45">
+        </div>
+        <button id="btn-sun-align" class="action-btn" style="width: 100%; margin-top: 6px;">
+          <span>☀️ Align Sun with Camera [L]</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Bottom Interactive Hints -->
+  <footer class="bottom-hints" aria-label="Controls Guide">
+    <div class="hint-pill"><span class="key-tag">Drag Water</span> Create Ripples</div>
+    <div class="hint-pill"><span class="key-tag">Drag Ball</span> Throw Sphere</div>
+    <div class="hint-pill"><span class="key-tag">Drag Background</span> Rotate Orbit</div>
+    <div class="hint-pill"><span class="key-tag">Scroll</span> Zoom View</div>
+    <div class="hint-pill"><span class="key-tag">Z</span> Zen Mode</div>
+  </footer>
+
+  <!-- Modal: Technical Architecture & Evan Wallace Story -->
+  <div id="tech-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tech-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="tech-modal-title" class="modal-title">The Engineering Behind WebGL Water</h3>
+        <button id="btn-close-tech" class="close-btn" aria-label="Close Dialog">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>
+          In 2011, college student <strong>Evan Wallace</strong> (who later co-founded <strong>Figma</strong> and authored <strong>esbuild</strong>) revolutionized browser graphics by building this real-time water simulation using raw WebGL shaders.
+        </p>
+
+        <div class="feature-block">
+          <h4><span>🌊</span> 1. Ping-Pong Heightfield Simulation</h4>
+          <p>
+            The water surface is modeled as a 2D discrete heightfield stored in two 32-bit floating-point textures (<code>OES_texture_float</code>). By ping-ponging between them, the shader solves the 2D wave equation:
+            <code>∂²h/∂t² = c² ∇²h</code>, tracking both height and velocity at 256×256 grid resolution.
+          </p>
+        </div>
+
+        <div class="feature-block">
+          <h4><span>✨</span> 2. Real-Time Caustics via Mesh Projection</h4>
+          <p>
+            Evan Wallace invented an ingenious technique for real-time caustics: a subdivided mesh representing the water surface is projected down along refracted sunlight rays onto the pool floor. By evaluating <code>dFdx</code> and <code>dFdy</code> screen-space derivatives, compressed triangles become bright highlights and stretched triangles become dim shadows.
+          </p>
+        </div>
+
+        <div class="feature-block">
+          <h4><span>📐</span> 3. Raytraced Scene & Analytic Ambient Occlusion</h4>
+          <p>
+            Instead of standard rasterized geometry, the water surface shader raytraces reflections and refractions through Snell's law and Fresnel equations against the analytic pool cube bounding box and the floating sphere.
+          </p>
+        </div>
+
+        <div class="feature-block">
+          <h4><span>🪐</span> 4. Interactive Buoyancy Physics</h4>
+          <p>
+            The sphere experiences gravitational acceleration, quadratic water drag, and submerged volume displacement, allowing dynamic splashing and tossing in full 3D space.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preloaded Textures Cache -->
+  <div class="asset-cache" aria-hidden="true">
+    <img id="tiles" src="tiles.jpg" alt="Pool Tiles Texture">
+    <img id="xneg" src="xneg.jpg" alt="Skybox -X">
+    <img id="xpos" src="xpos.jpg" alt="Skybox +X">
+    <img id="ypos" src="ypos.jpg" alt="Skybox +Y">
+    <img id="zneg" src="zneg.jpg" alt="Skybox -Z">
+    <img id="zpos" src="zpos.jpg" alt="Skybox +Z">
+  </div>
+</body>
+</html>
