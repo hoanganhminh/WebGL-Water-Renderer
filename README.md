@@ -2,6 +2,9 @@
 
 A modern, high-performance real-time 3D fluid simulation and landing page built in WebGL, recreating and enhancing the iconic 2011 graphics demo by **Evan Wallace** (co-founder of **Figma**, author of **esbuild**).
 
+## 🌐 Live Demo
+👉 **[https://hoanganhminh.github.io/WebGL-Water-Renderer/](https://hoanganhminh.github.io/WebGL-Water-Renderer/)**
+
 ## ✨ Key Features
 
 - **2D Heightfield Wave Simulation (FBO Ping-Pong)**: Solves the discrete 2D wave equation in fragment shaders on dual 32-bit floating-point textures (`OES_texture_float`).
